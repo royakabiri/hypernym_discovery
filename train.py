@@ -243,6 +243,8 @@ if __name__ == "__main__":
     parser.add_argument("dir_model", help="path of directory in which we write the model")
     parser.add_argument("-n", "--no_gpu", action="store_true")
     parser.add_argument("-s", "--seed", type=int, required=False, help="Seed for RNG")
+    parser.add_argument("--use-noise", type=bool, required=False, help="Use noise or not")
+    parser.add_argument("--noise-percentage", type=float, required=False, help="Percentage of noise")
     args = parser.parse_args()    
 
     # Parse hyperparameter settings
@@ -314,7 +316,7 @@ if __name__ == "__main__":
     log_path = "{}/log.txt".format(args.dir_model)
     
     model = train_model(classifier, optim, train_q_embed, dev_q_embed, dev_q_cand_ids, 
-                        train_pairs, dev_pairs, hparams, log_path, args.seed, inject_noise=False, inject_noise_probability=0.0)
+                        train_pairs, dev_pairs, hparams, log_path, args.seed, inject_noise=args.use_noise, inject_noise_probability=args.noise_percentage)
     print("\nLog saved ---> {}".format(log_path))
 
     # Save model
