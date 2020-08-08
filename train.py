@@ -14,6 +14,11 @@ doc = """Train model given a pickle file containing training and dev
 data, as well as hyperparameter settings. Write model and log
 file. """
 
+
+def should_sample(probability):
+    return random.random() < probability
+
+
 def make_sampler(things):
     """ Make generator that samples randomly from a list of things. """
 
@@ -25,7 +30,7 @@ def make_sampler(things):
         yield shuffled_things[i]
 
 def train_model(model, optim, train_q_embed, dev_q_embed, dev_q_cand_ids, 
-                train_pairs, dev_pairs, hparams, log_path, seed):
+                train_pairs, dev_pairs, hparams, log_path, seed, inject_noise=False, inject_noise_probability=0.0):
     """Train model using negative sampling.
 
     Args:
@@ -50,7 +55,7 @@ def train_model(model, optim, train_q_embed, dev_q_embed, dev_q_cand_ids,
 
     # Extract hyperparameter settings
     nb_neg_samples = hparams["nb_neg_samples"]
-    subsample = hparams["subsample"]
+    subsample = False#hparams["subsample"]
     max_epochs = hparams["max_epochs"]
     patience = hparams["patience"]
     batch_size = hparams["batch_size"]
@@ -151,7 +156,11 @@ def train_model(model, optim, train_q_embed, dev_q_embed, dev_q_cand_ids,
         nb_updates = 0
         for pair_ix in range(train_pairs.shape[0]):
             q_id = train_pairs[pair_ix,0]
-            h_id = train_pairs[pair_ix,1]
+            if inject_noise and inject_noise_probability > 0 and should_sample(inject_noise_probability):
+                h_id = next(cand_sampler)
+            else:
+                h_id = train_pairs[pair_ix,1]
+            # h_id = train_pairs[pair_ix,1]
             if subsample and random.random() >= pos_sample_prob[h_id]:
                 continue
             batch_q[batch_row_id] = q_id
@@ -305,7 +314,7 @@ if __name__ == "__main__":
     log_path = "{}/log.txt".format(args.dir_model)
     
     model = train_model(classifier, optim, train_q_embed, dev_q_embed, dev_q_cand_ids, 
-                        train_pairs, dev_pairs, hparams, log_path, args.seed)
+                        train_pairs, dev_pairs, hparams, log_path, args.seed, inject_noise=False, inject_noise_probability=0.0)
     print("\nLog saved ---> {}".format(log_path))
 
     # Save model
