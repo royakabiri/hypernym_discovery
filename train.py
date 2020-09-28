@@ -30,7 +30,7 @@ def make_sampler(things):
         yield shuffled_things[i]
 
 def train_model(model, optim, train_q_embed, dev_q_embed, dev_q_cand_ids, 
-                train_pairs, dev_pairs, hparams, log_path, seed, inject_noise=False, inject_noise_probability=0.0):
+                train_pairs, dev_pairs, hparams, log_path, seed, inject_noise=False, inject_noise_probability=0.0, inject_neg_noise_probability=0.0):
     """Train model using negative sampling.
 
     Args:
@@ -102,6 +102,7 @@ def train_model(model, optim, train_q_embed, dev_q_embed, dev_q_cand_ids,
     # training set. This is used for negative sampling.
     nb_train_queries = train_q_embed.weight.shape[0]
     train_gold_ids = [set() for _ in range(nb_train_queries)]
+
     nb_train_pairs = train_pairs.shape[0]
     for i in range(nb_train_pairs):
         q_id = int(train_pairs[i,0])
@@ -169,9 +170,14 @@ def train_model(model, optim, train_q_embed, dev_q_embed, dev_q_cand_ids,
             # Get negative examples
             neg_samples = []
             while len(neg_samples) < nb_neg_samples:
-                cand_id = next(cand_sampler)
-                if cand_id not in train_gold_ids[q_id]:
-                    neg_samples.append(cand_id)
+                if inject_noise and inject_neg_noise_probability > 0 and should_sample(inject_neg_noise_probability):
+                    golds_for_current = train_gold_ids[q_id]
+                    random_gold = random.sample(golds_for_current, 1)
+                    neg_samples.append(random_gold[0])
+                else:
+                    cand_id = next(cand_sampler)
+                    if cand_id not in train_gold_ids[q_id]:
+                        neg_samples.append(cand_id)
             batch_h_neg[batch_row_id] = neg_samples
 
             # Update on batch
@@ -245,6 +251,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--seed", type=int, required=False, help="Seed for RNG")
     parser.add_argument("--use-noise", type=bool, required=False, help="Use noise or not")
     parser.add_argument("--noise-percentage", type=float, required=False, help="Percentage of noise")
+    parser.add_argument("--neg-noise-percentage", type=float, required=False, help="Percentage of noise in the negative examples")
     args = parser.parse_args()    
 
     # Parse hyperparameter settings
@@ -316,7 +323,7 @@ if __name__ == "__main__":
     log_path = "{}/log.txt".format(args.dir_model)
     
     model = train_model(classifier, optim, train_q_embed, dev_q_embed, dev_q_cand_ids, 
-                        train_pairs, dev_pairs, hparams, log_path, args.seed, inject_noise=args.use_noise, inject_noise_probability=args.noise_percentage)
+                        train_pairs, dev_pairs, hparams, log_path, args.seed, inject_noise=args.use_noise, inject_noise_probability=args.noise_percentage, inject_neg_noise_probability=args.neg_noise_percentage)
     print("\nLog saved ---> {}".format(log_path))
 
     # Save model
